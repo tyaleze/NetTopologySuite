@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using GeoAPI.Geometries;
 using NetTopologySuite.CoordinateSystems;
 using NetTopologySuite.Features;
 using Newtonsoft.Json;
@@ -31,6 +33,12 @@ namespace NetTopologySuite.IO.Converters
                 writer.WritePropertyName("crs");
                 serializer.Serialize(writer, coll.CRS);
             }
+            var bbox = coll.BoundingBox;
+            if (bbox != null)
+            {
+                writer.WritePropertyName("bbox");
+                serializer.Serialize(writer, new []{ bbox.MinX, bbox.MinY, bbox.MaxX, bbox.MaxY }, typeof(double[]));
+            }
             writer.WriteEndObject();
         }
 
@@ -48,13 +56,18 @@ namespace NetTopologySuite.IO.Converters
                 string val = (string)reader.Value;
                 if (val == "features")
                 {
+                    // move to begin of array
                     reader.Read();
                     if (reader.TokenType != JsonToken.StartArray)
                         throw new ArgumentException("Expected token '[' not found.");
 
+                    // move to first feature
                     reader.Read();
                     while (reader.TokenType != JsonToken.EndArray)
+                    {
                         fc.Add(serializer.Deserialize<Feature>(reader));
+                        reader.Read();
+                    }
                     reader.Read();
                     continue;
                 }
@@ -64,6 +77,24 @@ namespace NetTopologySuite.IO.Converters
                     if (reader.TokenType != JsonToken.String && (string) reader.Value != "FeatureCollection")
                         throw new ArgumentException("Expected value 'FeatureCollection' not found.");
                     reader.Read();
+                    continue;
+                }
+                if (val == "bbox")
+                {
+                    fc.BoundingBox = serializer.Deserialize<Envelope>(reader);
+                    /*
+                    reader.Read();
+                    if (reader.TokenType != JsonToken.StartArray)
+                        throw new ArgumentException("Expected token '{' not found.");
+
+                    var env = serializer.Deserialize<double[]>(reader);
+                    fc.BoundingBox = new Envelope(env[0], env[2], env[1], env[3]);
+
+                    if (reader.TokenType != JsonToken.EndArray)
+                        throw new ArgumentException("Expected token '}' not found.");
+
+                    reader.Read();
+                     */
                     continue;
                 }
                 if (val == "crs")
