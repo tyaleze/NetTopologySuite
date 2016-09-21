@@ -88,12 +88,14 @@
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\NetTopologySuite.Tests.NUnit\TestData\EmbeddedResourceManager.cs">
       <Link>Tests\Various\EmbeddedResourceManager.cs</Link>
     </Compile>
+    <Compile Include="Features\UseOfIndexAndPreparedGeometry.cs" />
     <Compile Include="Geometries\basicexample.cs" />
     <Compile Include="Geometries\constructionexample.cs" />
     <Compile Include="Geometries\CreateOrientationDistanceMesh.cs" />
@@ -110,8 +112,9 @@
     <Compile Include="Lab\Clean\SmallHoleRemoverTest.cs" />
     <Compile Include="Lab\Functions\RemoverFunctions.cs" />
     <Compile Include="LinearReferencing\LinearReferencingExample.cs" />
-    <Compile Include="Operation\Poligonize\SplitPolygonExample.cs" />
+    <Compile Include="Operation\Polygonize\SplitPolygonExample.cs" />
     <Compile Include="Technique\ExtractLinestringByMeasure.cs" />
+    <Compile Include="Technique\RemoveSpikes.cs" />
     <Compile Include="Tests\GeometryServicesTest.cs" />
     <Compile Include="Tests\Github\Issue12Fixture.cs" />
     <Compile Include="Tests\Github\Issue27Fixture.cs" />
@@ -195,7 +198,7 @@
     <Compile Include="SimpleTests\Attributes\AttributesTest.cs" />
     <Compile Include="Operation\Distance\ClosestPointExample.cs" />
     <Compile Include="Operation\Linemerge\LineMergeExample.cs" />
-    <Compile Include="Operation\Poligonize\PolygonizeExample.cs" />
+    <Compile Include="Operation\Polygonize\PolygonizeExample.cs" />
     <Compile Include="Precision\EnhancedPrecisionOpExample.cs" />
     <Compile Include="ShapeTests\GMLTesting.cs" />
     <Compile Include="ShapeTests\ShapeRead.cs" />
@@ -236,6 +239,10 @@
       <Project>{7505264F-7E3E-4F8D-A9D5-885B4F313C26}</Project>
       <Name>NetTopologySuite.IO.PostGis</Name>
     </ProjectReference>
+    <ProjectReference Include="..\NetTopologySuite.IO\NetTopologySuite.IO.ShapeFile.Extended\NetTopologySuite.IO.ShapeFile.Extended.csproj">
+      <Project>{4f36dd38-3cce-4a19-93c2-a9f8b27ea430}</Project>
+      <Name>NetTopologySuite.IO.ShapeFile.Extended</Name>
+    </ProjectReference>
     <ProjectReference Include="..\NetTopologySuite.IO\NetTopologySuite.IO.ShapeFile\NetTopologySuite.IO.ShapeFile.csproj">
       <Project>{AB9096A7-89DD-4ABD-B535-A5258863F389}</Project>
       <Name>NetTopologySuite.IO.ShapeFile</Name>
@@ -255,6 +262,10 @@
     <ProjectReference Include="..\NetTopologySuite.Tests.NUnit\NetTopologySuite.Tests.NUnit.csproj">
       <Project>{a1525c90-fa00-449d-b3c4-cba45d5e916c}</Project>
       <Name>NetTopologySuite.Tests.NUnit</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\NetTopologySuite.Windows.Forms\NetTopologySuite.Windows.Forms.csproj">
+      <Project>{db5efab5-f90a-4b64-ab99-7c3a750154f1}</Project>
+      <Name>NetTopologySuite.Windows.Forms</Name>
     </ProjectReference>
     <ProjectReference Include="..\NetTopologySuite\NetTopologySuite.csproj">
       <Project>{5770DAA9-84E5-4770-AF43-F6B815894368}</Project>
