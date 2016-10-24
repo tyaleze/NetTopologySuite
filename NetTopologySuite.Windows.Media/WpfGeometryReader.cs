@@ -57,10 +57,15 @@ namespace NetTopologySuite.Windows.Media
         }
 
         private readonly IGeometryFactory _geometryFactory;
+        private readonly Matrix _transform;
 
-        public WpfGeometryReader(IGeometryFactory geometryFactory)
+        public WpfGeometryReader(IGeometryFactory geometryFactory, bool invertY = false)
+            :this(geometryFactory, invertY ? InvertY : Matrix.Identity) { }
+
+        public WpfGeometryReader(IGeometryFactory geometryFactory, Matrix transform)
         {
             _geometryFactory = geometryFactory;
+            _transform = transform;
         }
 
         /// <summary>
@@ -87,9 +92,15 @@ namespace NetTopologySuite.Windows.Media
                 // TODO: test this
                 var pts = pathPtSeq[seqIndex];
                 if (pts.Item3.Length == 1)
+                {
                     geoms.Add(_geometryFactory.CreatePoint(pts.Item3[0]));
-                else if (!pts.Item1) // Closed
+                    seqIndex++;
+                }
+                else if (!(pts.Item1 || pts.Item2)) // neither closed nor filled
+                {
                     geoms.Add(_geometryFactory.CreateLineString(pts.Item3));
+                    seqIndex++;
+                }
                 else
                 {
                     if (!pts.Item2) {
@@ -97,34 +108,107 @@ namespace NetTopologySuite.Windows.Media
                         continue;
                     }
 
-                    var rings = new List<IGeometry>(new[] {_geometryFactory.CreateLinearRing(pts.Item3)});
+                    var ringPts = ClosedCoordinateRing(pts.Item3);
+                    var rings = new List<IGeometry>(new[] {_geometryFactory.CreateLinearRing(ringPts)});
                     seqIndex++;
 
-                    Coordinate[] holePts;
-                    // add holes as long as rings are CCW
-                    while (seqIndex < pathPtSeq.Count && IsHole(holePts = pathPtSeq[seqIndex].Item3))
-                    {
-                        rings.Add(_geometryFactory.CreateLinearRing(holePts));
-                        seqIndex++;
-                    }
+                    //if (seqIndex < pathPtSeq.Count)
+                    //{
+                    //    if (!(pathPtSeq[seqIndex].Item1 || pathPtSeq[seqIndex].Item2)) continue;
 
-                    var noder = new Noding.Snapround.GeometryNoder(new Geometries.PrecisionModel(100000000.0));
-                    var nodedLinework = noder.Node(rings);
+                        Coordinate[] holePts;
+                        // add holes as long as rings are CCW
+                        while (seqIndex < pathPtSeq.Count &&
+                               (pathPtSeq[seqIndex].Item1 || pathPtSeq[seqIndex].Item2) &&
+                               IsHole(holePts = pathPtSeq[seqIndex].Item3))
+                        {
+                            rings.Add(_geometryFactory.CreateLinearRing(holePts));
+                            seqIndex++;
+                        }
 
-                    // Use the polygonizer
-                    var p = new Polygonizer(pathGeometry.FillRule == FillRule.EvenOdd);
-                    p.Add(new List<IGeometry>(Caster.Upcast<ILineString, IGeometry>(nodedLinework)));
-                    var tmpPolygons = p.GetPolygons();
-                    if (pathGeometry.FillRule == FillRule.Nonzero)
-                    {
-                        var unionized = CascadedPolygonUnion.Union(Geometries.GeometryFactory.ToPolygonArray(tmpPolygons));
-                        tmpPolygons = new List<IGeometry>(new[] {unionized});
-                    }
-                    geoms.AddRange(tmpPolygons);
+                        var noder = new Noding.Snapround.GeometryNoder(new Geometries.PrecisionModel(100000000.0));
+                        var nodedLinework = noder.Node(rings);
+
+                        // Use the polygonizer
+                        var p = new Polygonizer(pathGeometry.FillRule == FillRule.EvenOdd);
+                        p.Add(new List<IGeometry>(Caster.Upcast<ILineString, IGeometry>(nodedLinework)));
+                        var tmpPolygons = p.GetPolygons();
+                        if (pathGeometry.FillRule == FillRule.Nonzero)
+                        {
+                            var unionized =
+                                CascadedPolygonUnion.Union(Geometries.GeometryFactory.ToPolygonArray(tmpPolygons));
+                            tmpPolygons = new List<IGeometry>(new[] {unionized});
+                        }
+                        geoms.AddRange(tmpPolygons);
+                    //}
                 }
             }
 
-            return _geometryFactory.BuildGeometry(geoms);
+            return BuildGeometry(geoms);
+        }
+
+        private static Coordinate[] ClosedCoordinateRing(Coordinate[] ringPts)
+        {
+            if (!ringPts[0].Equals(ringPts[ringPts.Length - 1]))
+            {
+                var tmp = new List<Coordinate>(ringPts);
+                tmp.Add(ringPts[0].CoordinateValue);
+                ringPts = tmp.ToArray();
+            }
+            return ringPts;
+        }
+
+        private IGeometry BuildGeometry(ICollection<IGeometry> geoms)
+        {
+            var lst = new List<IGeometry>(geoms.Count);
+            IGeometry shell = null;
+            foreach (var geom in geoms)
+            {
+                if (geom is IPolygon)
+                {
+                    if (shell != null)
+                    {
+                        if (shell.Disjoint(geom)) 
+                            shell = shell.Union(geom);
+                        else if (geom.Contains(shell))
+                            shell = geom.Difference(shell);
+                        else if (shell.Touches(geom))
+                            shell = shell.Union(geom);
+                        else if (shell.Contains(geom))
+                            shell = shell.Difference(geom);
+                        else if (shell.Intersects(geom))
+                            shell = shell.SymmetricDifference(geom);
+                        else
+                        {
+                            throw new NotSupportedException();
+                            lst.Add(shell);
+                            shell = geom;
+                        }
+                    }
+                    else
+                    {
+                        shell = geom;
+                    }
+                }
+                else
+                {
+                    /*
+                    if (shell != null)
+                    {
+                        lst.Add(shell);
+                        shell = null;
+                    }
+                    */
+                    lst.Add(geom);
+                }
+            }
+
+            if (shell != null) {
+                lst.Insert(0, shell);
+            }
+            if (lst.Count > 1)
+                return _geometryFactory.BuildGeometry(lst);
+            return lst[0];
         }
 
         private static bool IsHole(Coordinate[] pts)
@@ -139,7 +223,7 @@ namespace NetTopologySuite.Windows.Media
         /// <param name="pathGeometry">A path figure collection</param>
         /// <returns>A list of coordinate arrays</returns>
         /// <exception cref="ArgumentException">If a non-linear segment type is encountered</exception>
-        private static List<Tuple<bool, bool, Coordinate[]>> ToCoordinates(PathGeometry pathGeometry)
+        private List<Tuple<bool, bool, Coordinate[]>> ToCoordinates(PathGeometry pathGeometry)
         {
             if (pathGeometry.MayHaveCurves())
                 throw new ArgumentException("WPF geometry must not have non-linear segments");
@@ -151,13 +235,13 @@ namespace NetTopologySuite.Windows.Media
             foreach (PathFigure pathFigure in pathFigures)
             {
                 var coords = NextCoordinateArray(pathFigure);
-                coordArrays.Add(Tuple.Create(pathFigure.IsClosed, pathFigure.IsFilled, coords));
+                coordArrays.Add(Tuple.Create(pathFigure.IsClosed, pathFigure.IsFilled & coords.Length > 2, coords));
             }
             return coordArrays;
         }
 
 
-        private static Coordinate[] NextCoordinateArray(PathFigure pathFigure)
+        private Coordinate[] NextCoordinateArray(PathFigure pathFigure)
         {
 
             var coordinateList = new List<Coordinate>(pathFigure.Segments.Count + 1);
@@ -181,9 +265,10 @@ namespace NetTopologySuite.Windows.Media
             return coordinateList.ToArray();
         }
 
-        private static Coordinate ToCoordinate(WpfPoint point)
+        private Coordinate ToCoordinate(WpfPoint point)
         {
-            return new Coordinate(point.X, point.Y);
+            var transformedPoint = _transform.Transform(point);
+            return new Coordinate(transformedPoint.X, transformedPoint.Y);
         }
     }
 }
